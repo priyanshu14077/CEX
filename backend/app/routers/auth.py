@@ -1,12 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
-from sqlalchemy.ext.asyncio import AsyncSession
 import os
-import uuid
 
-from app.db.database import get_db, supabase
+from app.db.database import supabase
 from app.models.schemas import UserCreate, UserResponse, Token
 
 router = APIRouter()
@@ -34,7 +32,6 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-    # Get user from Supabase
     response = supabase.table("profiles").select("*").eq("id", user_id).execute()
     if not response.data:
         raise HTTPException(status_code=401, detail="User not found")
@@ -43,8 +40,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 
 
 @router.post("/register", response_model=Token)
-async def register(user: UserCreate, db: AsyncSession = Depends(get_db)):
-    # Register with Supabase Auth
+async def register(user: UserCreate):
     try:
         auth_response = supabase.auth.sign_up({
             "email": user.email,
@@ -55,14 +51,12 @@ async def register(user: UserCreate, db: AsyncSession = Depends(get_db)):
 
         user_id = auth_response.user.id
 
-        # Create profile
         supabase.table("profiles").insert({
             "id": user_id,
             "email": user.email,
             "created_at": datetime.utcnow().isoformat()
         }).execute()
 
-        # Create wallet with initial balance
         supabase.table("wallets").insert({
             "user_id": user_id,
             "balance_inr": 10000.00
@@ -75,7 +69,7 @@ async def register(user: UserCreate, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/login", response_model=Token)
-async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
+async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     try:
         auth_response = supabase.auth.sign_in_with_password({
             "email": form_data.username,
