@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CEX - Centralized Exchange",
-  description: "Simulated stock trading platform",
+  title: "CEX | Centralized Exchange",
+  description: "Simulated stock trading platform - Buy and sell stocks with virtual INR",
 };
 
 export default function RootLayout({
