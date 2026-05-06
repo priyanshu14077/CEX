@@ -88,7 +88,7 @@ export default function Home() {
           {isLogin ? "Don't have an account?" : 'Already have an account?'}{' '}
           <button
             onClick={() => setIsLogin(!isLogin)}
-            className="text-blue-500 hover:text-blue-400 font-medium"
+            className="text-blue-500 hover:text-blue-400 font-medium transition-colors"
           >
             {isLogin ? 'Sign up' : 'Sign in'}
           </button>

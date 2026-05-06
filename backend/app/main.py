@@ -41,3 +41,9 @@ app.include_router(portfolio.router, prefix="/api/portfolio", tags=["Portfolio"]
 @app.get("/")
 async def root():
     return {"message": "CEX Backend API is running"}
+
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {"status": "healthy", "supabase": supabase is not None}
