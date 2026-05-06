@@ -3,11 +3,17 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import Navbar from '@/components/Navbar';
+import Sidebar from '@/components/Sidebar';
+import OrderForm from '@/components/OrderForm';
 import { marketAPI, walletAPI, portfolioAPI, ordersAPI } from '@/lib/api';
-import toast from 'react-hot-toast';
-import { TrendingUp, TrendingDown, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { motion } from 'framer-motion';
+import { TrendingUp, TrendingDown, ArrowLeft, Wallet, BarChart3 } from 'lucide-react';
 import Link from 'next/link';
+import { toast } from 'sonner';
 
 interface Stock {
   symbol: string;
@@ -36,12 +42,7 @@ export default function TradePage() {
   const [holding, setHolding] = useState<Holding | null>(null);
   const [walletBalance, setWalletBalance] = useState(0);
   const [loading, setLoading] = useState(true);
-
-  const [side, setSide] = useState<'buy' | 'sell'>('buy');
-  const [orderType, setOrderType] = useState<'market' | 'limit'>('market');
-  const [quantity, setQuantity] = useState('');
-  const [limitPrice, setLimitPrice] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+  const [orderPlaced, setOrderPlaced] = useState(0);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -58,237 +59,186 @@ export default function TradePage() {
       ]).then(([stockRes, walletRes, portfolioRes]) => {
         setStock(stockRes.data);
         setWalletBalance(walletRes.data.balance_inr);
-
+        
         const holdings = portfolioRes.data.holdings || [];
         const held = holdings.find((h: Holding) => h.symbol === symbol);
         setHolding(held || null);
       }).catch(console.error)
       .finally(() => setLoading(false));
     }
-  }, [user, symbol]);
+  }, [user, symbol, orderPlaced]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!stock) return;
-
-    const qty = parseInt(quantity);
-    if (isNaN(qty) || qty <= 0) {
-      toast.error('Please enter a valid quantity');
-      return;
-    }
-
-    if (side === 'sell' && holding && qty > holding.quantity) {
-      toast.error('Insufficient holdings');
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      const orderData = {
-        symbol,
-        side,
-        order_type: orderType,
-        quantity: qty,
-        price: orderType === 'limit' ? parseFloat(limitPrice) : undefined
-      };
-
-      await ordersAPI.createOrder(orderData);
-      toast.success(`${side === 'buy' ? 'Buy' : 'Sell'} order placed successfully`);
-
-      const [walletRes, portfolioRes] = await Promise.all([
-        walletAPI.getWallet(),
-        portfolioAPI.getPortfolio()
-      ]);
+  const handleOrderPlaced = () => {
+    setOrderPlaced(prev => prev + 1);
+    // Refresh data
+    Promise.all([
+      walletAPI.getWallet(),
+      portfolioAPI.getPortfolio()
+    ]).then(([walletRes, portfolioRes]) => {
       setWalletBalance(walletRes.data.balance_inr);
       const holdings = portfolioRes.data.holdings || [];
       const held = holdings.find((h: Holding) => h.symbol === symbol);
       setHolding(held || null);
-
-      setQuantity('');
-      setLimitPrice('');
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Order failed';
-      toast.error(errorMessage);
-    } finally {
-      setSubmitting(false);
-    }
+    });
   };
 
   if (authLoading || loading || !user || !stock) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+      <div className="min-h-screen bg-[#020617]">
+        <Sidebar />
+        <div className="ml-64 p-8">
+          <Skeleton className="h-8 w-32 mb-8 bg-slate-900/50" />
+          <div className="grid grid-cols-3 gap-6">
+            <Skeleton className="h-96 rounded-2xl bg-slate-900/50" />
+            <Skeleton className="h-96 rounded-2xl bg-slate-900/50" />
+            <Skeleton className="h-96 rounded-2xl bg-slate-900/50" />
+          </div>
+        </div>
       </div>
     );
   }
 
-  const totalValue = (orderType === 'limit' ? parseFloat(limitPrice) || stock.price : stock.price) * (parseInt(quantity) || 0);
+  const isPositive = stock.change >= 0;
 
   return (
-    <div className="min-h-screen bg-slate-950">
-      <Navbar />
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Link href="/markets" className="inline-flex items-center text-slate-400 hover:text-white mb-6">
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Markets
-        </Link>
+    <div className="min-h-screen bg-[#020617]">
+      <Sidebar />
+      <div className="ml-64">
+        <main className="p-8">
+          {/* Back button */}
+          <motion.div 
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="mb-6"
+          >
+            <Link href="/markets">
+              <Button variant="ghost" className="gap-2 text-slate-400 hover:text-white">
+                <ArrowLeft className="w-4 h-4" />
+                Back to Markets
+              </Button>
+            </Link>
+          </motion.div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2">
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 mb-6">
-              <div className="flex items-start justify-between mb-6">
-                <div>
-                  <h1 className="text-3xl font-bold text-white">{stock.symbol}</h1>
-                  <p className="text-slate-400">{stock.name}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-3xl font-bold text-white">₹{stock.price.toLocaleString()}</p>
-                  <p className={`flex items-center gap-1 ${stock.change >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                    {stock.change >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                    {stock.change >= 0 ? '+' : ''}{stock.change.toFixed(2)} ({stock.change_percent.toFixed(2)}%)
-                  </p>
-                </div>
+          {/* Stock Header */}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-start justify-between mb-8"
+          >
+            <div className="flex items-center gap-6">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500/20 to-violet-500/20 flex items-center justify-center">
+                <span className="text-2xl font-bold text-blue-400">{symbol.slice(0, 2)}</span>
               </div>
-
-              <div className="grid grid-cols-4 gap-4">
-                <div className="bg-slate-800/50 rounded-lg p-3">
-                  <p className="text-xs text-slate-400">High</p>
-                  <p className="text-white font-semibold">₹{stock.high.toLocaleString()}</p>
-                </div>
-                <div className="bg-slate-800/50 rounded-lg p-3">
-                  <p className="text-xs text-slate-400">Low</p>
-                  <p className="text-white font-semibold">₹{stock.low.toLocaleString()}</p>
-                </div>
-                <div className="bg-slate-800/50 rounded-lg p-3">
-                  <p className="text-xs text-slate-400">Volume</p>
-                  <p className="text-white font-semibold">{(stock.volume / 1000000).toFixed(1)}M</p>
-                </div>
-                {holding && (
-                  <div className="bg-slate-800/50 rounded-lg p-3">
-                    <p className="text-xs text-slate-400">Holdings</p>
-                    <p className="text-white font-semibold">{holding.quantity} shares</p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {holding && (
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-                <h2 className="text-lg font-semibold text-white mb-4">Your Position</h2>
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <p className="text-sm text-slate-400">Quantity</p>
-                    <p className="text-white font-semibold">{holding.quantity}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-slate-400">Avg. Price</p>
-                    <p className="text-white font-semibold">₹{holding.avg_buy_price.toLocaleString()}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-slate-400">Value</p>
-                    <p className="text-white font-semibold">₹{(holding.quantity * stock.price).toLocaleString()}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-            <h2 className="text-lg font-semibold text-white mb-4">Place Order</h2>
-
-            <div className="flex gap-2 mb-4">
-              <button
-                onClick={() => setSide('buy')}
-                className={`flex-1 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 ${
-                  side === 'buy' ? 'bg-green-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                }`}
-              >
-                <ArrowRight className="w-4 h-4" />
-                Buy
-              </button>
-              <button
-                onClick={() => setSide('sell')}
-                className={`flex-1 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 ${
-                  side === 'sell' ? 'bg-red-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                }`}
-              >
-                <ArrowRight className="w-4 h-4 rotate-180" />
-                Sell
-              </button>
-            </div>
-
-            <div className="flex gap-2 mb-4">
-              <button
-                onClick={() => setOrderType('market')}
-                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  orderType === 'market' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'
-                }`}
-              >
-                Market
-              </button>
-              <button
-                onClick={() => setOrderType('limit')}
-                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  orderType === 'limit' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'
-                }`}
-              >
-                Limit
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {orderType === 'limit' && (
-                <div>
-                  <label className="block text-sm font-medium text-slate-400 mb-2">Limit Price (₹)</label>
-                  <input
-                    type="number"
-                    value={limitPrice}
-                    onChange={(e) => setLimitPrice(e.target.value)}
-                    placeholder={stock.price.toString()}
-                    className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              )}
-
               <div>
-                <label className="block text-sm font-medium text-slate-400 mb-2">Quantity</label>
-                <input
-                  type="number"
-                  value={quantity}
-                  onChange={(e) => setQuantity(e.target.value)}
-                  placeholder="Enter quantity"
-                  className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                <h1 className="text-4xl font-bold text-white">{symbol}</h1>
+                <p className="text-lg text-slate-400">{stock.name}</p>
               </div>
+            </div>
+            <div className="text-right">
+              <p className="text-4xl font-bold text-white">₹{stock.price.toLocaleString()}</p>
+              <div className={`flex items-center gap-2 justify-end mt-1 ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
+                {isPositive ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
+                <span className="text-lg font-medium">
+                  {isPositive ? '+' : ''}₹{stock.change.toFixed(2)} ({stock.change_percent.toFixed(2)}%)
+                </span>
+              </div>
+            </div>
+          </motion.div>
 
-              {quantity && (
-                <div className="p-3 bg-slate-800/50 rounded-lg">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-400">Estimated Total</span>
-                    <span className="text-white font-semibold">₹{totalValue.toLocaleString()}</span>
+          {/* Stats Cards */}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="grid grid-cols-4 gap-4 mb-8"
+          >
+            {[
+              { label: 'High', value: `₹${stock.high.toLocaleString()}`, icon: TrendingUp },
+              { label: 'Low', value: `₹${stock.low.toLocaleString()}`, icon: TrendingDown },
+              { label: 'Volume', value: `${(stock.volume / 1000000).toFixed(1)}M`, icon: BarChart3 },
+              { label: 'Wallet', value: `₹${walletBalance.toLocaleString()}`, icon: Wallet },
+            ].map((stat, i) => (
+              <Card key={stat.label} className="bg-slate-900/50 border-slate-800/50">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-slate-400">{stat.label}</p>
+                      <p className="text-lg font-semibold text-white">{stat.value}</p>
+                    </div>
+                    <stat.icon className="w-5 h-5 text-slate-500" />
                   </div>
-                </div>
-              )}
+                </CardContent>
+              </Card>
+            ))}
+          </motion.div>
 
-              <div className="p-3 bg-slate-800/30 rounded-lg">
-                <p className="text-xs text-slate-400">Available Balance: ₹{walletBalance.toLocaleString()}</p>
-              </div>
+          {/* Main Content */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Your Position */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              <Card className="bg-slate-900/50 border-slate-800/50">
+                <CardHeader>
+                  <CardTitle className="text-white">Your Position</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {holding ? (
+                    <div className="space-y-4">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Quantity</span>
+                        <span className="font-medium text-white">{holding.quantity} shares</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Avg. Price</span>
+                        <span className="font-medium text-white">₹{holding.avg_buy_price.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Current Value</span>
+                        <span className="font-medium text-white">₹{(holding.quantity * stock.price).toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between pt-4 border-t border-slate-800/50">
+                        <span className="text-slate-400">Unrealized P/L</span>
+                        <span className={`font-medium ${
+                          (stock.price - holding.avg_buy_price) * holding.quantity >= 0 
+                            ? 'text-emerald-400' 
+                            : 'text-red-400'
+                        }`}>
+                          {((stock.price - holding.avg_buy_price) * holding.quantity) >= 0 ? '+' : ''}
+                          ₹{((stock.price - holding.avg_buy_price) * holding.quantity).toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <p className="text-slate-400 mb-4">You don&apos;t own any {symbol}</p>
+                      <Link href="/markets">
+                        <Button className="bg-blue-500 hover:bg-blue-600">Buy Now</Button>
+                      </Link>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </motion.div>
 
-              <button
-                type="submit"
-                disabled={submitting || !quantity}
-                className={`w-full py-3 rounded-lg font-semibold transition-colors ${
-                  side === 'buy'
-                    ? 'bg-green-600 hover:bg-green-700 text-white'
-                    : 'bg-red-600 hover:bg-red-700 text-white'
-                } disabled:opacity-50 disabled:cursor-not-allowed`}
-              >
-                {submitting ? 'Processing...' : `${side === 'buy' ? 'Buy' : 'Sell'} ${symbol}`}
-              </button>
-            </form>
+            {/* Order Form */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="lg:col-span-2"
+            >
+              <OrderForm 
+                symbol={symbol} 
+                price={stock.price} 
+                onOrderPlaced={handleOrderPlaced}
+              />
+            </motion.div>
           </div>
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
   );
 }
