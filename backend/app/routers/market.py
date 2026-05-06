@@ -14,6 +14,19 @@ BASE_URL = "https://www.alphavantage.co/query"
 
 DEFAULT_STOCKS = ["AAPL", "GOOGL", "MSFT", "TSLA", "AMZN", "NVDA", "META", "NFLX", "AMD", "INTC"]
 
+STOCK_NAMES = {
+    "AAPL": "Apple Inc.",
+    "GOOGL": "Alphabet Inc.",
+    "MSFT": "Microsoft Corporation",
+    "TSLA": "Tesla Inc.",
+    "AMZN": "Amazon.com Inc.",
+    "NVDA": "NVIDIA Corporation",
+    "META": "Meta Platforms Inc.",
+    "NFLX": "Netflix Inc.",
+    "AMD": "Advanced Micro Devices",
+    "INTC": "Intel Corporation"
+}
+
 stock_cache = {}
 CACHE_TTL = 300
 
@@ -53,19 +66,7 @@ async def fetch_stock_data(symbol: str) -> dict:
 
 def get_company_name(symbol: str) -> str:
     """Get company name for symbol"""
-    names = {
-        "AAPL": "Apple Inc.",
-        "GOOGL": "Alphabet Inc.",
-        "MSFT": "Microsoft Corporation",
-        "TSLA": "Tesla Inc.",
-        "AMZN": "Amazon.com Inc.",
-        "NVDA": "NVIDIA Corporation",
-        "META": "Meta Platforms Inc.",
-        "NFLX": "Netflix Inc.",
-        "AMD": "Advanced Micro Devices",
-        "INTC": "Intel Corporation"
-    }
-    return names.get(symbol, symbol)
+    return STOCK_NAMES.get(symbol, symbol)
 
 
 def get_mock_data(symbol: str) -> dict:
