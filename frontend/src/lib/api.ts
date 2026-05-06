@@ -2,6 +2,8 @@ import axios from 'axios';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
 
+const getAuthToken = () => typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -10,7 +12,7 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
+  const token = getAuthToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
