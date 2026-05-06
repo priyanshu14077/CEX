@@ -15,4 +15,5 @@ async def init_db():
 
 
 def get_supabase():
+    """Get Supabase client for database operations"""
     return supabase
