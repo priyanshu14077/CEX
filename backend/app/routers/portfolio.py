@@ -1,8 +1,12 @@
+"""
+Portfolio API endpoints for user holdings and summary
+"""
 from fastapi import APIRouter, Depends
+import asyncio
+
 from app.routers.auth import get_current_user
 from app.routers.market import fetch_stock_data
 from app.db.database import supabase
-import asyncio
 
 router = APIRouter()
 
