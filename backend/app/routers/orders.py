@@ -1,10 +1,11 @@
+"""
+Orders API endpoints for placing and managing orders
+"""
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
-from typing import List
 import uuid
 
-from app.db.database import get_db, supabase
+from app.db.database import supabase
 from app.routers.auth import get_current_user
 from app.routers.market import fetch_stock_data
 from app.models.schemas import OrderCreate, OrderResponse
