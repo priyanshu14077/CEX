@@ -1,83 +1,69 @@
 """
-Wallet API endpoints for deposit, withdraw and transaction history
+Wallet API endpoints for deposit, withdraw and transaction history - Demo Mode
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Request
 from datetime import datetime
-
-from app.db.database import supabase
-from app.routers.auth import get_current_user
-from app.models.schemas import WalletResponse, DepositRequest, WithdrawRequest, TransactionResponse
 
 router = APIRouter()
 
+# In-memory wallet for demo
+demo_wallet = {
+    "balance_inr": 10000.00,
+    "transactions": []
+}
 
-@router.get("", response_model=WalletResponse)
-async def get_wallet(current_user: dict = Depends(get_current_user)):
-    response = supabase.table("wallets").select("*").eq("user_id", current_user["id"]).execute()
-    if not response.data:
-        raise HTTPException(status_code=404, detail="Wallet not found")
-    return response.data[0]
+
+@router.get("")
+async def get_wallet(request: Request):
+    return {
+        "user_id": request.state.user_id,
+        "balance_inr": demo_wallet["balance_inr"]
+    }
 
 
 @router.post("/deposit")
-async def deposit(request: DepositRequest, current_user: dict = Depends(get_current_user)):
-    if request.amount <= 0:
-        raise HTTPException(status_code=400, detail="Amount must be positive")
+async def deposit(request: Request, amount: float):
+    if amount <= 0:
+        return {"error": "Amount must be positive"}
 
-    # Get current balance
-    wallet_response = supabase.table("wallets").select("balance_inr").eq("user_id", current_user["id"]).execute()
-    if not wallet_response.data:
-        raise HTTPException(status_code=404, detail="Wallet not found")
-
-    current_balance = float(wallet_response.data[0]["balance_inr"])
-    new_balance = current_balance + request.amount
-
-    # Update wallet
-    supabase.table("wallets").update({"balance_inr": new_balance}).eq("user_id", current_user["id"]).execute()
-
-    # Record transaction
-    supabase.table("transactions").insert({
-        "user_id": current_user["id"],
+    demo_wallet["balance_inr"] += amount
+    demo_wallet["transactions"].append({
+        "id": str(datetime.now().timestamp()),
+        "user_id": request.state.user_id,
         "type": "deposit",
-        "amount": request.amount,
+        "amount": amount,
         "created_at": datetime.utcnow().isoformat()
-    }).execute()
+    })
 
-    return {"message": "Deposit successful", "new_balance": new_balance}
+    return {
+        "message": "Deposit successful",
+        "new_balance": demo_wallet["balance_inr"]
+    }
 
 
 @router.post("/withdraw")
-async def withdraw(request: WithdrawRequest, current_user: dict = Depends(get_current_user)):
-    if request.amount <= 0:
-        raise HTTPException(status_code=400, detail="Amount must be positive")
+async def withdraw(request: Request, amount: float):
+    if amount <= 0:
+        return {"error": "Amount must be positive"}
 
-    # Get current balance
-    wallet_response = supabase.table("wallets").select("balance_inr").eq("user_id", current_user["id"]).execute()
-    if not wallet_response.data:
-        raise HTTPException(status_code=404, detail="Wallet not found")
+    if demo_wallet["balance_inr"] < amount:
+        return {"error": "Insufficient balance"}
 
-    current_balance = float(wallet_response.data[0]["balance_inr"])
-
-    if current_balance < request.amount:
-        raise HTTPException(status_code=400, detail="Insufficient balance")
-
-    new_balance = current_balance - request.amount
-
-    # Update wallet
-    supabase.table("wallets").update({"balance_inr": new_balance}).eq("user_id", current_user["id"]).execute()
-
-    # Record transaction
-    supabase.table("transactions").insert({
-        "user_id": current_user["id"],
+    demo_wallet["balance_inr"] -= amount
+    demo_wallet["transactions"].append({
+        "id": str(datetime.now().timestamp()),
+        "user_id": request.state.user_id,
         "type": "withdraw",
-        "amount": request.amount,
+        "amount": amount,
         "created_at": datetime.utcnow().isoformat()
-    }).execute()
+    })
 
-    return {"message": "Withdrawal successful", "new_balance": new_balance}
+    return {
+        "message": "Withdrawal successful",
+        "new_balance": demo_wallet["balance_inr"]
+    }
 
 
 @router.get("/transactions")
-async def get_transactions(current_user: dict = Depends(get_current_user)):
-    response = supabase.table("transactions").select("*").eq("user_id", current_user["id"]).order("created_at", desc=True).execute()
-    return response.data
+async def get_transactions(request: Request):
+    return demo_wallet["transactions"]

@@ -1,116 +1,85 @@
 """
-Portfolio API endpoints for user holdings and summary
+Portfolio API endpoints for user holdings and summary - Demo Mode
 """
-from fastapi import APIRouter, Depends
-import asyncio
-
-from app.routers.auth import get_current_user
-from app.routers.market import fetch_stock_data
-from app.db.database import supabase
+from fastapi import APIRouter, Request
+from app.routers.market import get_stock_price, DEFAULT_STOCKS
+from app.routers.orders import demo_orders
 
 router = APIRouter()
 
 
 @router.get("")
-async def get_portfolio(current_user: dict = Depends(get_current_user)):
+async def get_portfolio(request: Request):
     """Get user's portfolio with current values"""
-    user_id = current_user["id"]
+    # Aggregate holdings from filled buy orders
+    holdings_map = {}
 
-    # Get holdings
-    holdings_response = supabase.table("holdings").select("*").eq("user_id", user_id).execute()
-    holdings = holdings_response.data
+    for order in demo_orders:
+        if order["status"] == "filled" and order["side"] == "buy":
+            symbol = order["symbol"]
+            if symbol not in holdings_map:
+                holdings_map[symbol] = {"quantity": 0, "total_cost": 0}
 
-    if not holdings:
-        return {
-            "holdings": [],
-            "total_value": 0,
-            "total_profit_loss": 0,
-            "total_profit_loss_percent": 0
-        }
+            holdings_map[symbol]["quantity"] += order["quantity"]
+            holdings_map[symbol]["total_cost"] += order["price"] * order["quantity"]
 
-    # Fetch current prices for all held symbols
-    symbols = [h["symbol"] for h in holdings]
-    price_tasks = [fetch_stock_data(symbol) for symbol in symbols]
-    prices = await asyncio.gather(*price_tasks)
+        elif order["status"] == "filled" and order["side"] == "sell":
+            symbol = order["symbol"]
+            if symbol in holdings_map:
+                holdings_map[symbol]["quantity"] -= order["quantity"]
 
-    price_map = {p["symbol"]: p for p in prices}
-
-    # Calculate portfolio values
+    # Calculate portfolio items
+    portfolio_items = []
     total_value = 0
     total_cost = 0
 
-    portfolio_items = []
-    for holding in holdings:
-        symbol = holding["symbol"]
-        quantity = holding["quantity"]
-        avg_price = float(holding["avg_buy_price"])
+    for symbol, data in holdings_map.items():
+        if data["quantity"] <= 0:
+            continue
 
-        current_price_data = price_map.get(symbol, {})
-        current_price = current_price_data.get("price", avg_price)
+        current_price = get_stock_price(symbol) or 0
+        avg_price = data["total_cost"] / data["quantity"] if data["quantity"] > 0 else 0
+        value = current_price * data["quantity"]
+        cost = avg_price * data["quantity"]
 
-        value = current_price * quantity
-        cost = avg_price * quantity
-        profit_loss = value - cost
-        profit_loss_percent = (profit_loss / cost * 100) if cost > 0 else 0
+        portfolio_items.append({
+            "symbol": symbol,
+            "name": next((s["name"] for s in DEFAULT_STOCKS if s["symbol"] == symbol), symbol),
+            "quantity": data["quantity"],
+            "avg_buy_price": round(avg_price, 2),
+            "current_price": current_price,
+            "total_value": round(value, 2),
+            "profit_loss": round(value - cost, 2),
+            "profit_loss_percent": round(((value - cost) / cost * 100) if cost > 0 else 0, 2)
+        })
 
         total_value += value
         total_cost += cost
 
-        portfolio_items.append({
-            "symbol": symbol,
-            "name": current_price_data.get("name", symbol),
-            "quantity": quantity,
-            "avg_buy_price": avg_price,
-            "current_price": current_price,
-            "total_value": value,
-            "profit_loss": profit_loss,
-            "profit_loss_percent": round(profit_loss_percent, 2)
-        })
-
     total_profit_loss = total_value - total_cost
-    total_profit_loss_percent = (total_profit_loss / total_cost * 100) if total_cost > 0 else 0
 
     return {
         "holdings": portfolio_items,
         "total_value": round(total_value, 2),
         "total_profit_loss": round(total_profit_loss, 2),
-        "total_profit_loss_percent": round(total_profit_loss_percent, 2)
+        "total_profit_loss_percent": round((total_profit_loss / total_cost * 100) if total_cost > 0 else 0, 2)
     }
 
 
 @router.get("/summary")
-async def get_portfolio_summary(current_user: dict = Depends(get_current_user)):
+async def get_portfolio_summary(request: Request):
     """Get quick portfolio summary"""
-    user_id = current_user["id"]
+    from app.routers.wallet import demo_wallet
 
-    # Get wallet balance
-    wallet_response = supabase.table("wallets").select("balance_inr").eq("user_id", user_id).execute()
-    wallet_balance = float(wallet_response.data[0]["balance_inr"]) if wallet_response.data else 0
-
-    # Get total holdings value
-    holdings_response = supabase.table("holdings").select("*").eq("user_id", user_id).execute()
-    holdings = holdings_response.data
-
-    if not holdings:
-        return {
-            "wallet_balance": wallet_balance,
-            "holdings_value": 0,
-            "total_portfolio_value": wallet_balance,
-            "holdings_count": 0
-        }
-
-    symbols = [h["symbol"] for h in holdings]
-    price_tasks = [fetch_stock_data(symbol) for symbol in symbols]
-    prices = await asyncio.gather(*price_tasks)
-
-    holdings_value = sum(
-        float(h["quantity"]) * prices[i].get("price", float(h["avg_buy_price"]))
-        for i, h in enumerate(holdings)
-    )
+    holdings_value = 0
+    for order in demo_orders:
+        if order["status"] == "filled" and order["side"] == "buy":
+            price = get_stock_price(order["symbol"]) or 0
+            holdings_value += price * order["quantity"]
 
     return {
-        "wallet_balance": round(wallet_balance, 2),
+        "wallet_balance": round(demo_wallet["balance_inr"], 2),
         "holdings_value": round(holdings_value, 2),
-        "total_portfolio_value": round(wallet_balance + holdings_value, 2),
-        "holdings_count": len(holdings)
+        "total_portfolio_value": round(demo_wallet["balance_inr"] + holdings_value, 2),
+        "holdings_count": len(set(o["symbol"] for o in demo_orders if o["status"] == "filled" and o["side"] == "buy"))
     }

@@ -133,3 +133,13 @@ async def search_stocks(query: str):
     query = query.upper()
     matching = [s for s in DEFAULT_STOCKS if query in s]
     return {"results": matching}
+
+
+def get_stock_price(symbol: str) -> float:
+    """Get current price for a symbol (sync, for use in other routers)"""
+    mock_prices = {
+        "AAPL": 178.50, "GOOGL": 141.20, "MSFT": 378.90,
+        "TSLA": 248.50, "AMZN": 178.30, "NVDA": 875.40,
+        "META": 505.20, "NFLX": 628.90, "AMD": 178.60, "INTC": 42.30
+    }
+    return mock_prices.get(symbol.upper())

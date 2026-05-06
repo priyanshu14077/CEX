@@ -1,7 +1,6 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { authAPI } from './api';
 
 interface User {
   id: string;
@@ -19,40 +18,38 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Demo user for testing without backend
+const DEMO_USER: User = {
+  id: "demo-user-123",
+  email: "demo@cex.app",
+  created_at: new Date().toISOString()
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
+  // Auto-login for demo mode
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      authAPI.me()
-        .then((res) => setUser(res.data))
-        .catch(() => {
-          localStorage.removeItem('token');
-        })
-        .finally(() => setLoading(false));
-    } else {
-      setLoading(false);
-    }
+    setUser(DEMO_USER);
+    setLoading(false);
   }, []);
 
-  const login = async (email: string, password: string) => {
-    const res = await authAPI.login(email, password);
-    localStorage.setItem('token', res.data.access_token);
-    const meRes = await authAPI.me();
-    setUser(meRes.data);
+  const login = async (_email: string, _password: string) => {
+    setLoading(true);
+    // Skip actual auth in demo mode
+    setUser(DEMO_USER);
+    setLoading(false);
   };
 
-  const register = async (email: string, password: string) => {
-    const res = await authAPI.register(email, password);
-    localStorage.setItem('token', res.data.access_token);
-    const meRes = await authAPI.me();
-    setUser(meRes.data);
+  const register = async (_email: string, _password: string) => {
+    setLoading(true);
+    // Skip actual auth in demo mode
+    setUser(DEMO_USER);
+    setLoading(false);
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
     setUser(null);
   };
 
