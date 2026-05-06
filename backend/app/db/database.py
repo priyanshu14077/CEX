@@ -19,7 +19,9 @@ def get_supabase():
 
 
 async def init_db():
+    """Initialize database connection and tables"""
     if supabase:
         print("Database initialized with Supabase client")
     else:
         print("Warning: Supabase not configured - running in demo mode")
+    return supabase is not None
