@@ -18,7 +18,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="CEX Backend API",
-    description="Centralized Exchange Backend",
+    description="Centralized Exchange Backend - Simulated Stock Trading Platform",
     version="1.0.0",
     lifespan=lifespan
 )
