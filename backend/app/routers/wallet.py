@@ -1,8 +1,10 @@
+"""
+Wallet API endpoints for deposit, withdraw and transaction history
+"""
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
 
-from app.db.database import get_db, supabase
+from app.db.database import supabase
 from app.routers.auth import get_current_user
 from app.models.schemas import WalletResponse, DepositRequest, WithdrawRequest, TransactionResponse
 
